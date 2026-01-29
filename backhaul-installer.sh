@@ -402,7 +402,7 @@ main() {
     info "KHAREJ mode (client)"
     local host_input host port web_port token remote_addr
 
-    host_input="$(prompt "IRAN IP/Domain (examples: 2.144.2.104 OR http://2.144.2.104/ )" "")"
+    host_input="$(prompt "IRAN IP/Domain" "")"
     host="$(normalize_host "$host_input")"
     if [[ -z "$host" ]]; then
       err "Invalid IP/Domain input."
