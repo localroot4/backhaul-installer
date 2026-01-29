@@ -108,6 +108,21 @@ validate_port() {
   [[ "$p" =~ ^[0-9]{1,5}$ ]] && (( p>=1 && p<=65535 ))
 }
 
+sanitize_oneline() {
+  local s="$1"
+  # remove CR/LF and trim spaces
+  s="$(printf "%s" "$s" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  echo "$s"
+}
+
+toml_escape() {
+  local s="$1"
+  # escape backslash and double quotes for TOML string
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  echo "$s"
+}
+
 # Accepts:
 #   2.144.2.104
 #   http://2.144.2.104/
@@ -376,10 +391,14 @@ main() {
     done
 
     token="$(prompt_secret "Token (token)" "")"
+    token="$(sanitize_oneline "$token")"
+    token="$(toml_escape "$token")"
     if [[ -z "$token" ]]; then
       err "Token cannot be empty."
       exit 1
     fi
+
+
 
     ports_count="$(prompt "How many ports do you want to tunnel? (count)" "1")"
     until [[ "$ports_count" =~ ^[0-9]+$ ]] && (( ports_count>=1 && ports_count<=200 )); do
@@ -425,10 +444,13 @@ main() {
     done
 
     token="$(prompt_secret "Token (token)" "")"
+    token="$(sanitize_oneline "$token")"
+    token="$(toml_escape "$token")"
     if [[ -z "$token" ]]; then
       err "Token cannot be empty."
       exit 1
     fi
+
 
     write_client_toml "$name" "$remote_addr" "$web_port" "$token"
     write_systemd_service "$name"
