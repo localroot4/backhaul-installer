@@ -1,66 +1,150 @@
-# Backhaul Installer (IRAN / KHAREJ) 🚀
+# 🚀 Backhaul Installer (IRAN / KHAREJ)
 
-Interactive, colorful installer for **Musixal/Backhaul** with:
-- Auto **amd64 / arm64** detection
-- IRAN (server) / KHAREJ (client) modes
-- Generates `.toml` config + `systemd` service
-- Enables + starts service automatically
-- Nice output + logs on failure
+Interactive, colorful and production-ready installer for **Musixal/Backhaul** on Linux.  
+Designed for fast deployment with **one command** over SSH.
 
-> This script written by ./LR4
+> **This script written by ./LR4**
 
 ---
 
-## Quick Install (1-line)
+## ✨ Features
+
+- 🔹 One-line install via SSH
+- 🔹 Interactive setup (no manual editing)
+- 🔹 **IRAN (Server)** / **KHAREJ (Client)** modes
+- 🔹 Automatic **amd64 / arm64** architecture detection
+- 🔹 Auto-generates `.toml` configuration files
+- 🔹 Creates and manages `systemd` services
+- 🔹 Colorful terminal UI + clear error reporting
+- 🔹 Safe defaults (press Enter to continue)
+- 🔹 Suitable for production environments
+
+---
+
+## ⚡ Quick Install (Recommended)
+
+Run this command on your server:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/localroot4/backhaul-installer/main/backhaul-installer.sh)
 
-Or (recommended):
+Alternative (download then run)
 
+```curl
 curl -fsSL https://raw.githubusercontent.com/localroot4/backhaul-installer/main/backhaul-installer.sh -o backhaul-installer.sh \
   && sudo bash backhaul-installer.sh
 
-What it does
+🧠 How It Works
 
-Downloads Backhaul release (default: 0.6.5)
+When you run the installer, it guides you step by step:
 
-Installs dependencies (curl/wget/tar/nano/systemd)
+Asks for a Tunnel Name
 
-Asks:
+Used as the configuration file name
 
-Server name (used for NAME.toml and NAME.service)
+Used as the systemd service name
 
-Mode: IRAN / KHAREJ
+Asks you to choose the server type:
 
-Tunnel port / Web port / Token
+IRAN → Backhaul Server mode
 
-Port mappings (IRAN mode)
+KHAREJ → Backhaul Client mode
 
-Remote address (KHAREJ mode)
+Requests required configuration values:
 
-Writes:
+Tunnel port (default: 8080)
 
-/root/NAME.toml
+Web panel port (default: 2060)
 
-/etc/systemd/system/NAME.service
+Authentication token
 
-Runs:
+Port mappings (IRAN mode only)
 
-systemctl daemon-reload
+Remote address IP:PORT (KHAREJ mode only)
 
-systemctl enable NAME.service
+Automatically generates:
 
-systemctl restart NAME.service
+Backhaul .toml configuration file
 
-Manage service
-systemctl status NAME.service
-journalctl -u NAME.service -n 100 --no-pager
-systemctl restart NAME.service
-systemctl stop NAME.service
+systemd service file
 
-Notes
+Reloads systemd, enables the service, and starts it
 
-Target: Linux with systemd
+Checks service status and prints logs if any error occurs
 
-Run as root: sudo bash backhaul-installer.sh
+No manual editing is required at any step.
+
+⚙️ What the Script Does Internally
+
+Detects Linux architecture (amd64 or arm64)
+
+Downloads the correct Backhaul binary
+
+Installs required system dependencies
+
+Writes configuration files to /root
+
+Registers Backhaul as a systemd service
+
+Ensures Backhaul starts automatically on boot
+
+
+📁 Generated Files
+
+For a tunnel name called TUNNEL_NAME:
+/root/TUNNEL_NAME.toml
+/etc/systemd/system/TUNNEL_NAME.service
+
+🔧 Service Management
+systemctl status TUNNEL_NAME.service
+systemctl restart TUNNEL_NAME.service
+systemctl stop TUNNEL_NAME.service
+journalctl -u TUNNEL_NAME.service -n 100 --no-pager
+
+🖥 Supported Systems
+
+Linux (systemd-based)
+
+Ubuntu / Debian
+
+CentOS / AlmaLinux / Rocky Linux
+
+Arch Linux
+
+Alpine Linux (limited systemd support)
+
+Root access is required.
+
+🧪 Supported Architectures
+
+x86_64 (amd64)
+
+aarch64 (arm64)
+
+
+🔐 Security Notes
+
+Always review scripts before running on production servers
+
+Use strong and unique authentication tokens
+
+Restrict tunnel and web ports using firewall rules
+
+Do not expose the web panel to the public internet
+
+
+🧑‍💻 Author
+
+./LR4
+If you find this project useful, consider giving it a ⭐ on GitHub.
+
+
+---
+
+اگر الان بخوای:
+- README رو **بی‌نقص‌تر برای GitHub Trending** کنیم  
+- یا **badge + screenshot + GIF نصب** اضافه کنیم  
+- یا حتی متن‌ها رو **کم‌حرف‌تر یا رسمی‌تر** کنیم  
+
+دیگه این نقطه، نقطه‌ی پولیش نهاییه 🔥
+::contentReference[oaicite:0]{index=0}
