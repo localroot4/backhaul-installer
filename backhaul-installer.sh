@@ -16,12 +16,11 @@ info() { echo -e "${CYN}${BOLD}➜${RST} $*"; }
 # ---------- Banner ----------
 banner() {
   clear || true
+  echo -e "${MAG}${BOLD}"
   if command -v figlet >/dev/null 2>&1; then
-    echo -e "${MAG}${BOLD}"
     figlet -f slant "BACKHAUL"
-    echo -e "${RST}${DIM}This script written by ./LR4${RST}\n"
   else
-    echo -e "${MAG}${BOLD}"
+    # fallback (shouldn't happen if deps install worked)
     cat <<'ASCII'
  ____    _    ____ _  ____  _   _    _    _   _
 | __ )  / \  / ___| |/ /  \| | | |  / \  | | | |
@@ -29,9 +28,8 @@ banner() {
 | |_) / ___ \ |___| . \|  _/| |_| |/ ___ \| |_| |
 |____/_/   \_\____|_|\_\_|   \___//_/   \_\___/
 ASCII
-    echo -e "${RST}${DIM}Tip: install 'figlet' for a bigger banner.${RST}"
-    echo -e "${DIM}This script written by ./LR4${RST}\n"
   fi
+  echo -e "${RST}${DIM}This script written by ./LR4${RST}\n"
 }
 
 # ---------- Helpers ----------
@@ -54,39 +52,28 @@ detect_pkg_mgr() {
 
 install_deps() {
   local pm="$1"
-  info "Installing required packages (curl/wget/tar/nano/systemd tools)..."
+  info "Installing required packages (curl/wget/tar/nano/systemd + figlet)..."
   case "$pm" in
     apt)
       apt-get update -y
-      apt-get install -y curl wget tar nano ca-certificates coreutils grep sed systemd
+      apt-get install -y curl wget tar nano ca-certificates coreutils grep sed systemd figlet
       ;;
     dnf)
-      dnf install -y curl wget tar nano ca-certificates coreutils grep sed systemd
+      dnf install -y curl wget tar nano ca-certificates coreutils grep sed systemd figlet
       ;;
     yum)
-      yum install -y curl wget tar nano ca-certificates coreutils grep sed systemd
+      yum install -y curl wget tar nano ca-certificates coreutils grep sed systemd figlet
       ;;
     pacman)
-      pacman -Sy --noconfirm curl wget tar nano ca-certificates coreutils grep sed systemd
+      pacman -Sy --noconfirm curl wget tar nano ca-certificates coreutils grep sed systemd figlet
       ;;
     apk)
-      apk add --no-cache curl wget tar nano ca-certificates coreutils grep sed
+      apk add --no-cache curl wget tar nano ca-certificates coreutils grep sed figlet
       ;;
     none)
-      warn "No supported package manager found. Ensure these exist: curl/wget/tar/nano/systemctl"
+      warn "No supported package manager found. Ensure these exist: curl/wget/tar/nano/systemctl/figlet"
       ;;
   esac
-
-  # Optional: figlet for cooler banner
-  if ! command -v figlet >/dev/null 2>&1; then
-    case "$pm" in
-      apt)     apt-get install -y figlet >/dev/null 2>&1 || true ;;
-      dnf)     dnf install -y figlet >/dev/null 2>&1 || true ;;
-      yum)     yum install -y figlet >/dev/null 2>&1 || true ;;
-      pacman)  pacman -S --noconfirm figlet >/dev/null 2>&1 || true ;;
-      apk)     apk add --no-cache figlet >/dev/null 2>&1 || true ;;
-    esac
-  fi
 }
 
 prompt() {
@@ -121,12 +108,48 @@ validate_port() {
   [[ "$p" =~ ^[0-9]{1,5}$ ]] && (( p>=1 && p<=65535 ))
 }
 
-validate_ip_port() {
-  local s="$1"
-  # Basic check: something:something_port
-  [[ "$s" =~ ^.+:[0-9]{1,5}$ ]] || return 1
-  local port="${s##*:}"
-  validate_port "$port"
+# Accepts:
+#   2.144.2.104
+#   http://2.144.2.104/
+#   https://example.com/path
+#   example.com:8080   (we'll strip :port if user mistakenly includes it)
+normalize_host() {
+  local in="$1"
+  # strip leading/trailing spaces
+  in="$(echo "$in" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  # remove scheme
+  in="${in#http://}"
+  in="${in#https://}"
+  in="${in#ws://}"
+  in="${in#wss://}"
+  # remove path/query/fragment
+  in="${in%%/*}"
+  in="${in%%\?*}"
+  in="${in%%\#*}"
+  # strip brackets for IPv6 (basic)
+  in="${in#[}"
+  in="${in%]}"
+  # if user pasted host:port, keep only host
+  if [[ "$in" == *:* ]]; then
+    # if it's an IPv6, this is imperfect; but user focus is IPv4/domain
+    # For typical "host:port" we take left side
+    in="${in%%:*}"
+  fi
+  echo "$in"
+}
+
+fetch_latest_version() {
+  # Uses GitHub redirect for /releases/latest to get tag (vX.Y.Z)
+  # Returns: X.Y.Z or empty on failure
+  local loc tag
+  loc="$(curl -fsSLI https://github.com/Musixal/Backhaul/releases/latest 2>/dev/null | tr -d '\r' | awk -F': ' 'tolower($1)=="location"{print $2}' | tail -n1 || true)"
+  tag="${loc##*/}"             # v0.6.5
+  tag="${tag#v}"               # 0.6.5
+  if [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "$tag"
+  else
+    echo ""
+  fi
 }
 
 arch_url() {
@@ -158,9 +181,18 @@ download_and_install_backhaul() {
   local tmp="/tmp/backhaul_linux.tar.gz"
 
   info "Downloading Backhaul v${version}"
-  info "URL: $url"
+  echo -e "${DIM}${url}${RST}"
+
   rm -f "$tmp"
-  curl -fL --progress-bar "$url" -o "$tmp"
+
+  # Cleaner progress:
+  # - Prefer wget bar without noisy symbols
+  # - Fallback to curl progress bar
+  if command -v wget >/dev/null 2>&1; then
+    wget --show-progress --progress=bar:force:noscroll -O "$tmp" "$url"
+  else
+    curl -fL --progress-bar "$url" -o "$tmp"
+  fi
 
   info "Extracting to /root/backhaul"
   tar -xzf "$tmp" -C /root
@@ -257,14 +289,13 @@ enable_start_service() {
   info "Starting service: ${name}.service"
   systemctl restart "${name}.service"
 
-  # quick status
   if systemctl is-active --quiet "${name}.service"; then
     ok "Service is ACTIVE ✅"
   else
     err "Service is NOT active ❌"
     systemctl --no-pager status "${name}.service" || true
     echo -e "${YEL}${BOLD}Last logs:${RST}"
-    journalctl -u "${name}.service" --no-pager -n 50 || true
+    journalctl -u "${name}.service" --no-pager -n 80 || true
     exit 1
   fi
 }
@@ -280,7 +311,6 @@ build_ports_block() {
       p="$(prompt "Port mapping #$i" "")"
     done
 
-    # Add comma except last (TOML array style)
     if (( i < count )); then
       block+="\"${p}\",\n"
     else
@@ -288,18 +318,26 @@ build_ports_block() {
     fi
   done
 
-  # Print without interpreting escapes outside caller
   printf "%b" "$block"
 }
 
 # ---------- Main ----------
 main() {
   require_root
-  banner
 
   local pm; pm="$(detect_pkg_mgr)"
   install_deps "$pm"
   banner
+
+  # Latest version (as default), but allow older versions
+  local latest
+  latest="$(fetch_latest_version || true)"
+  if [[ -n "$latest" ]]; then
+    ok "Latest Backhaul version detected: ${BOLD}${latest}${RST}"
+  else
+    warn "Could not detect latest version (network/blocked). Using fallback default 0.6.5"
+    latest="0.6.5"
+  fi
 
   echo -e "${WHT}${BOLD}Select server type:${RST}"
   echo -e "  ${GRN}${BOLD}1) IRAN${RST}   ${DIM}(server mode)${RST}"
@@ -308,14 +346,14 @@ main() {
   choice="$(prompt "Enter 1 or 2" "1")"
 
   local version
-  version="$(prompt "Backhaul version (only number like 0.6.5)" "0.6.5")"
+  version="$(prompt "Backhaul version (latest: ${latest})" "${latest}")"
 
+  # Tunnel name (NO default)
   local name
-  name="$(prompt "Server name (example: ESTONIA) - will be used for .toml and .service" "ESTONIA")"
-  # sanitize name for systemd unit
+  name="$(prompt "Tunnel name (used for .toml and .service) e.g. tunnel_iran_1" "")"
   name="$(echo "$name" | tr -cd 'A-Za-z0-9_-')"
   if [[ -z "$name" ]]; then
-    err "Invalid name."
+    err "Tunnel name cannot be empty (allowed: A-Z a-z 0-9 _ -)."
     exit 1
   fi
 
@@ -328,16 +366,16 @@ main() {
     tunnel_port="$(prompt "Tunnel port (bind_addr port)" "8080")"
     until validate_port "$tunnel_port"; do
       warn "Invalid port. Must be 1-65535."
-      tunnel_port="$(prompt "Tunnel port" "8080")"
+      tunnel_port="$(prompt "Tunnel port (bind_addr port)" "8080")"
     done
 
     web_port="$(prompt "Web port (web_port)" "2060")"
     until validate_port "$web_port"; do
       warn "Invalid port. Must be 1-65535."
-      web_port="$(prompt "Web port" "2060")"
+      web_port="$(prompt "Web port (web_port)" "2060")"
     done
 
-    token="$(prompt_secret "Token (token)" "your_token")"
+    token="$(prompt_secret "Token (token)" "")"
     if [[ -z "$token" ]]; then
       err "Token cannot be empty."
       exit 1
@@ -346,7 +384,7 @@ main() {
     ports_count="$(prompt "How many ports do you want to tunnel? (count)" "1")"
     until [[ "$ports_count" =~ ^[0-9]+$ ]] && (( ports_count>=1 && ports_count<=200 )); do
       warn "Enter a valid count (1..200)."
-      ports_count="$(prompt "How many ports?" "1")"
+      ports_count="$(prompt "How many ports do you want to tunnel? (count)" "1")"
     done
 
     info "Enter port mappings like ${BOLD}85=85${RST} (one per line)"
@@ -359,24 +397,34 @@ main() {
     echo -e "\n${GRN}${BOLD}DONE!${RST} ${DIM}(IRAN / server mode)${RST}"
     echo -e "${WHT}Config:${RST} /root/${name}.toml"
     echo -e "${WHT}Service:${RST} ${name}.service"
-    echo -e "${DIM}This script written by ./LR4${RST}"
+    echo -e "${MAG}${BOLD}Installed by localroot${RST}\n"
   elif [[ "$choice" == "2" ]]; then
     info "KHAREJ mode (client)"
-    local remote_addr web_port token
+    local host_input host port web_port token remote_addr
 
-    remote_addr="$(prompt "Remote address (IRAN_IP:TUNNEL_PORT) example 1.2.3.4:8080" "")"
-    until validate_ip_port "$remote_addr"; do
-      warn "Invalid format. Must be like IP:PORT (or domain:PORT)."
-      remote_addr="$(prompt "Remote address (IRAN_IP:TUNNEL_PORT)" "")"
+    host_input="$(prompt "IRAN IP/Domain (examples: 2.144.2.104 OR http://2.144.2.104/ )" "")"
+    host="$(normalize_host "$host_input")"
+    if [[ -z "$host" ]]; then
+      err "Invalid IP/Domain input."
+      exit 1
+    fi
+
+    port="$(prompt "IRAN Tunnel Port" "8080")"
+    until validate_port "$port"; do
+      warn "Invalid port. Must be 1-65535."
+      port="$(prompt "IRAN Tunnel Port" "8080")"
     done
+
+    remote_addr="${host}:${port}"
+    ok "Remote address set to: ${BOLD}${remote_addr}${RST}"
 
     web_port="$(prompt "Web port (web_port)" "2060")"
     until validate_port "$web_port"; do
       warn "Invalid port. Must be 1-65535."
-      web_port="$(prompt "Web port" "2060")"
+      web_port="$(prompt "Web port (web_port)" "2060")"
     done
 
-    token="$(prompt_secret "Token (token)" "your_token")"
+    token="$(prompt_secret "Token (token)" "")"
     if [[ -z "$token" ]]; then
       err "Token cannot be empty."
       exit 1
@@ -389,7 +437,7 @@ main() {
     echo -e "\n${GRN}${BOLD}DONE!${RST} ${DIM}(KHAREJ / client mode)${RST}"
     echo -e "${WHT}Config:${RST} /root/${name}.toml"
     echo -e "${WHT}Service:${RST} ${name}.service"
-    echo -e "${DIM}This script written by ./LR4${RST}"
+    echo -e "${MAG}${BOLD}Installed by localroot${RST}\n"
   else
     err "Invalid choice. Enter 1 (IRAN) or 2 (KHAREJ)."
     exit 1
